@@ -29,6 +29,13 @@ jobs:
       - name: Tap this repo
         run: brew tap Chasm-lang/chasm https://github.com/Chasm-lang/homebrew-chasm
 
+      - name: Patch formula with live SHA256
+        run: |
+          REAL_SHA=$(curl -sL https://github.com/Chasm-lang/Chasm/archive/refs/tags/v1.2.1.tar.gz | shasum -a 256 | awk '{print $1}')
+          echo "SHA256: $REAL_SHA"
+          FORMULA="$(brew formula Chasm-lang/chasm/chasm)"
+          sed -i '' "s/sha256 \"[a-f0-9]\{64\}\"/sha256 \"$REAL_SHA\"/" "$FORMULA"
+
       - name: Install from source (no bottle)
         run: brew install --build-bottle Chasm-lang/chasm/chasm
 
