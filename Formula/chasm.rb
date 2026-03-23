@@ -1,9 +1,9 @@
 class Chasm < Formula
   desc "Scripting language for real-time games — compiles to C99 with deterministic memory lifetimes"
-  homepage "https://github.com/GarretTomlin/Chasm"
-  url "https://github.com/GarretTomlin/Chasm/archive/refs/tags/v1.2.1.tar.gz"
+  homepage "https://github.com/Chasm-lang/Chasm"
+  url "https://github.com/Chasm-lang/Chasm/archive/refs/tags/v1.2.1.tar.gz"
   sha256 "f84127fdcf3192484aef4035d2a0c4bb70cbe7c8c599bddfe2422397b26b1280"
-  head "https://github.com/GarretTomlin/Chasm.git", branch: "main"
+  head "https://github.com/Chasm-lang/Chasm.git", branch: "main"
   license "MIT"
   version "1.2.1"
 

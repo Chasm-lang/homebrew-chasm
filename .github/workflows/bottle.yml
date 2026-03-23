@@ -3,8 +3,11 @@ name: Build and publish bottles
 on:
   push:
     tags:
-      - "v*"           # fires on every version tag, e.g. v1.2.1
-  workflow_dispatch:   # allow manual trigger from the Actions tab
+      - "v*"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   bottle:
@@ -18,8 +21,6 @@ jobs:
             bottle_tag: arm64_sequoia
           - os: macos-14        # arm64 Sonoma
             bottle_tag: arm64_sonoma
-          - os: macos-13        # x86_64 Ventura
-            bottle_tag: ventura
 
     steps:
       - name: Set up Homebrew
@@ -46,7 +47,7 @@ jobs:
     needs: bottle
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # needed to push the updated formula and create the release
+      contents: write
 
     steps:
       - name: Checkout tap repo
@@ -75,16 +76,15 @@ jobs:
           FORMULA="Formula/chasm.rb"
 
           for json_file in bottles/*.json; do
-            # Each .json file contains the bottle info for one OS
             bottle_tag=$(python3 -c "
-          import json, sys
+          import json
           d = json.load(open('$json_file'))
           pkg = list(d.values())[0]
           tag = list(pkg['bottle']['tags'].keys())[0]
           print(tag)
           ")
             sha=$(python3 -c "
-          import json, sys
+          import json
           d = json.load(open('$json_file'))
           pkg = list(d.values())[0]
           tag = list(pkg['bottle']['tags'].keys())[0]
