@@ -1,0 +1,103 @@
+name: Build and publish bottles
+
+on:
+  push:
+    tags:
+      - "v*"           # fires on every version tag, e.g. v1.2.1
+  workflow_dispatch:   # allow manual trigger from the Actions tab
+
+jobs:
+  bottle:
+    name: Build bottle — ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15        # arm64 Sequoia
+            bottle_tag: arm64_sequoia
+          - os: macos-14        # arm64 Sonoma
+            bottle_tag: arm64_sonoma
+          - os: macos-13        # x86_64 Ventura
+            bottle_tag: ventura
+
+    steps:
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Tap this repo
+        run: brew tap Chasm-lang/chasm https://github.com/Chasm-lang/homebrew-chasm
+
+      - name: Install from source (no bottle)
+        run: brew install --build-bottle Chasm-lang/chasm/chasm
+
+      - name: Build bottle
+        run: brew bottle --json --root-url="https://github.com/Chasm-lang/homebrew-chasm/releases/download/${{ github.ref_name }}" Chasm-lang/chasm/chasm
+
+      - name: Upload bottle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bottle-${{ matrix.bottle_tag }}
+          path: "*.bottle.*"
+          if-no-files-found: error
+
+  publish:
+    name: Publish bottles + update formula
+    needs: bottle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push the updated formula and create the release
+
+    steps:
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all bottle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bottles
+          merge-multiple: true
+
+      - name: Upload bottles to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bottles/*.bottle.*
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update formula with real bottle SHA256s
+        run: |
+          set -euo pipefail
+          FORMULA="Formula/chasm.rb"
+
+          for json_file in bottles/*.json; do
+            # Each .json file contains the bottle info for one OS
+            bottle_tag=$(python3 -c "
+          import json, sys
+          d = json.load(open('$json_file'))
+          pkg = list(d.values())[0]
+          tag = list(pkg['bottle']['tags'].keys())[0]
+          print(tag)
+          ")
+            sha=$(python3 -c "
+          import json, sys
+          d = json.load(open('$json_file'))
+          pkg = list(d.values())[0]
+          tag = list(pkg['bottle']['tags'].keys())[0]
+          print(pkg['bottle']['tags'][tag]['sha256'])
+          ")
+            echo "Patching $bottle_tag → $sha"
+            sed -i "s/PLACEHOLDER_${bottle_tag^^}/$sha/" "$FORMULA"
+          done
+
+      - name: Commit updated formula
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/chasm.rb
+          git diff --cached --quiet || git commit -m "chore: update bottle SHA256s for ${{ github.ref_name }}"
+          git push
